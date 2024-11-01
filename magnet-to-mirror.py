@@ -54,26 +54,26 @@ def download_magnet(magnet_link, download_path):
     return download_path
 
 def zip_folder(folder_path, magnet_link, bot_id, chat_id):
-    if not os.path.isdir(folder_path):
-        send_to_telegram(bot_id, chat_id, f"Skipping zipping. The path {folder_path} is not a directory.")
-        return None
+    """Zip the given folder path and notify via Telegram."""
+    if os.path.isdir(folder_path):
+        try:
+            folder_name_segment = magnet_link.split('dn=')[1] if 'dn=' in magnet_link else ''
+            folder_name = requests.utils.unquote(folder_name_segment.split('&')[0]) if folder_name_segment else 'downloaded_files'
 
-    try:
-        # Safely extract the folder name
-        folder_name_segment = magnet_link.split('dn=')[1] if 'dn=' in magnet_link else ''
-        folder_name = requests.utils.unquote(folder_name_segment.split('&')[0]) if folder_name_segment else 'downloaded_files'
+            zip_file_path = os.path.join(os.path.dirname(folder_path), f"{folder_name}.7z")
+            send_to_telegram(bot_id, chat_id, "Zipping the folder...")
 
-        zip_file_path = os.path.join(os.path.dirname(folder_path), f"{folder_name}.7z")
-        send_to_telegram(bot_id, chat_id, "Zipping the folder...")
+            start_time = time.time()
+            subprocess.run(['7z', 'a', '-mx=0', zip_file_path, folder_path], check=True)
 
-        start_time = time.time()
-        subprocess.run(['7z', 'a', '-mx=0', zip_file_path, folder_path], check=True)
-
-        elapsed_time = time.time() - start_time
-        send_to_telegram(bot_id, chat_id, f"Zipping completed in {elapsed_time:.2f} seconds!")
-        return zip_file_path
-    except Exception as e:
-        send_to_telegram(bot_id, chat_id, f"Error zipping folder: {str(e)}")
+            elapsed_time = time.time() - start_time
+            send_to_telegram(bot_id, chat_id, f"Zipping completed in {elapsed_time:.2f} seconds!")
+            return zip_file_path
+        except Exception as e:
+            send_to_telegram(bot_id, chat_id, f"Error zipping folder: {str(e)}")
+            return None
+    else:
+        send_to_telegram(bot_id, chat_id, f"Skipping zipping. The path {folder_path} is not a valid directory.")
         return None
 
 def get_magnet_link_from_github(repo, path, branch="main"):
@@ -112,5 +112,10 @@ if __name__ == "__main__":
     # Start downloading the magnet link
     download_magnet(magnet_link, download_path)
 
-    # Optionally zip the downloaded folder
-    zip_folder(download_path, magnet_link, bot_id, chat_id)
+    # Check if the downloaded content is a directory or a file
+    if os.path.isdir(download_path):
+        zip_folder(download_path, magnet_link, bot_id, chat_id)
+    elif os.path.isfile(download_path):
+        send_to_telegram(bot_id, chat_id, "Downloaded content is a single file; skipping zipping.")
+    else:
+        send_to_telegram(bot_id, chat_id, "Downloaded content is neither a file nor a directory.")
